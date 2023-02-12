@@ -26,17 +26,16 @@ class Settings:
     DEVISE = hashlib.md5(str(UID.node).encode("utf-8")).hexdigest()
     SOCIAL_VTOPE = "m"
 
-    def __init__(self, delay_from, delay_to, count_accounts_per_proxy,
+    def __init__(self, count_accounts_per_proxy,
                  auto_reconnect, proxy_timeout, type_of_proxy, path_to_channels):
         self.file_log = "logs.txt"
-        self.delay_from = delay_from
-        self.delay_to = delay_to
         self.count_accounts_per_proxy = count_accounts_per_proxy
         self.auto_reconnect = auto_reconnect
         self.proxy_timeout = proxy_timeout
         self.type_of_proxy = type_of_proxy
         self.path_to_channels = path_to_channels
-        self.channels = {}
+        self.count_created_channels = 0
+        self.channels = []
         self.count_ban_accounts = 0
         self.count_limited_accounts = 0
         self.count_flood_accounts = 0
@@ -61,8 +60,6 @@ class Settings:
         if not os.path.exists("data.json"):
             AccountsJson.write_json_file({}, "data.json")
         data = AccountsJson.read_json_file("data.json")
-
-
 
     # Загрузка сессий
     def load_sessions(self):
@@ -290,9 +287,31 @@ class Settings:
                 Logger.info(f"Не найден Json файл сессии - {session}", self.red)
         AccountsJson.write_json_file(accounts, "accounts.json")
 
-    def read_channels_from_txt(self):
+    def read_channels_from_txt(self, is_name=False):
         with open(self.path_to_channels, "r", encoding="utf-8") as file_with_channels_read:
-            self.channels
+            lines = file_with_channels_read.readlines()
+            counter = 1
+            for line in lines:
+                line_split = line.strip().split(";")
+                try:
+                    if is_name:
+                        channel_users = line_split
+                        if len(channel_users) > 0:
+                            self.channels.append([channel_name, channel_users])
+                        else:
+                            Logger.info(
+                                f"Не указаны пользователи в строке - {counter}, проверьте введенные данные",
+                                self.red)
+                    else:
+                        channel_name = line_split[0]
+                        channel_users = line_split[1:]
+                        if len(channel_users) > 0:
+                            self.channels.append([channel_name, channel_users])
+                        else:
+                            Logger.info(f"Не указаны пользователи у канала - {channel_name}, проверьте введенные данные", self.red)
+                except Exception as ex:
+                    Logger.info(f"Не удалось считать канал на строке - {counter}, проверьте введенные данные!", self.red)
+                counter += 1
 
 class AccountsJson:
 
