@@ -8,7 +8,7 @@ from logger import Logger
 from telethon import functions, types
 from settings import Settings
 from telethon.errors import FloodWaitError, ChannelsTooMuchError, InvalidBufferError, AuthKeyError, AuthKeyNotFound, \
-    UserRestrictedError
+    UserRestrictedError, ChannelPrivateError
 from telethon import functions, types
 
 
@@ -20,7 +20,7 @@ async def create_chat(settings: Settings, client: telethon.TelegramClient, sessi
         async with client:
             result = await client(functions.channels.CreateChannelRequest(
                 title=channel[0],
-                about='',
+                about=channel[1],
                 megagroup=True,
             ))
             # result = await client(functions.messages.EditChatAboutRequest)
@@ -33,14 +33,27 @@ async def create_chat(settings: Settings, client: telethon.TelegramClient, sessi
                 await client.edit_permissions(chat, send_messages=False)
             if permission_show_admin:
                 await client.edit_admin(chat, await client.get_me(), anonymous=True)
-            Logger.info(f"Успешно создал группу - {channel[0]} на аккаунте - {session}")
+            Logger.info(f"Успешно создал группу - {channel[0]} на аккаунте - {session}", settings.gr)
             settings.count_created_channels += 1
             return True, chat_id
     except UserRestrictedError as ex:
         Logger.info("Словил спам, больше не могу создавать каналы на этом аккаунте, перевожу его в badsession", settings.red)
         return False, 0
+    except FloodWaitError:
+        Logger.info(f"Словил флуд на аккаунте {session}", settings.red)
+
+        settings.flood_sessions.append(session)
+
+    except AuthKeyError as ex:
+        Logger.info("Словил бан, перемещаю в badsession", settings.red)
+        settings.deleted_sessions.append(session)
+
+    except AuthKeyNotFound as ex:
+        Logger.info("Словил бан, перемещаю в badsession", settings.red)
+        settings.deleted_sessions.append(session)
+
     except Exception as ex:
-        print(ex)
+        Logger.info(f"Словил неизвестную ошибку {ex} на аккаунте - {session}", settings.red)
         return False, 0
 
 
@@ -48,9 +61,66 @@ async def delete_chat(settings: Settings, client: telethon.TelegramClient, sessi
     try:
         async with client:
             result = await client(functions.channels.DeleteChannelRequest(channel_id))
-            Logger.info(f"Успешно удалил группу - {channel_name} на аккаунте - {session}")
+            Logger.info(f"Успешно удалил группу - {channel_name} на аккаунте - {session}", settings.gr)
+            settings.count_created_channels += 1
+            return True
+
+    except AuthKeyError as ex:
+        Logger.info("Словил бан, перемещаю в badsession", settings.red)
+        settings.deleted_sessions.append(session)
+    except FloodWaitError:
+        Logger.info(f"Словил флуд на аккаунте {session}", settings.red)
+        settings.flood_sessions.append(session)
+    except AuthKeyNotFound as ex:
+        Logger.info("Словил бан, перемещаю в badsession", settings.red)
+        settings.deleted_sessions.append(session)
+
+    except Exception as ex:
+        Logger.info(f"Словил неизвестную ошибку {ex} на аккаунте - {session}", settings.red)
+        return False
+
+
+async def add_admin(settings: Settings, client: telethon.TelegramClient, session: str, channel_id: int, admin_username: str):
+    try:
+        async with client:
+            await client.edit_admin(await client.get_entity(channel_id), admin_username, anonymous=True)
+            Logger.info(f"Успешно добавил бота {admin_username} в группу - {channel_id} на аккаунте - {session}", settings.gr)
             settings.count_created_channels += 1
             return True
     except Exception as ex:
-        print(ex)
+        Logger.info(f"Словил неизвестную ошибку {ex} на аккаунте - {session}", settings.red)
         return False
+
+
+async def make_post(settings: Settings, client: telethon.TelegramClient, session: str, channel_username_from: str, id_post_from: int, id_post_to: int, channel_to_id: int, type_of_post):
+    try:
+        async with client:
+            result = await client(functions.messages.GetHistoryRequest(
+                peer=channel_username_from,
+                offset_id=0,
+                offset_date=0,
+                add_offset=0,
+                limit=100,
+                max_id=id_post_to,
+                min_id=id_post_from,
+                hash=0
+            ))
+            for message in result.messages:
+                if type_of_post == "1":
+                    await client(functions.messages.ForwardMessagesRequest(channel_username_from, [message.id], channel_to_id))
+                else:
+                    print(await client.get_entity(int(channel_to_id)))
+                    await client.send_message(await client.get_entity(int(channel_to_id)), message)
+            Logger.info(f"Успешно отправил сообщения в группу - {channel_to_id} на аккаунте - {session}", settings.gr)
+            settings.count_created_channels += 1
+            return True
+    except ChannelPrivateError:
+        Logger.info(f"{channel_username_from} - приватный канал, не могу переслать сообщения..", settings.red)
+    except FloodWaitError:
+        Logger.info(f"Словил флуд на аккаунте {session}", settings.red)
+        settings.flood_sessions.append(session)
+    except Exception as ex:
+        Logger.info(f"Словил неизвестную ошибку {ex} на аккаунте - {session}", settings.red)
+        return False
+
+

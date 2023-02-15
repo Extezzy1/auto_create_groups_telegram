@@ -26,16 +26,18 @@ class Settings:
     DEVISE = hashlib.md5(str(UID.node).encode("utf-8")).hexdigest()
     SOCIAL_VTOPE = "m"
 
-    def __init__(self, count_accounts_per_proxy,
-                 auto_reconnect, proxy_timeout, type_of_proxy, path_to_channels):
+    def __init__(self, path_to_channels, path_to_admins,
+                 path_to_undeleted_channels):
         self.file_log = "logs.txt"
-        self.count_accounts_per_proxy = count_accounts_per_proxy
-        self.auto_reconnect = auto_reconnect
-        self.proxy_timeout = proxy_timeout
-        self.type_of_proxy = type_of_proxy
+
+        self.path_to_admins = path_to_admins
+        self.path_to_undeleted_channels = path_to_undeleted_channels
         self.path_to_channels = path_to_channels
         self.count_created_channels = 0
         self.channels = []
+        self.undeleted_channels = []
+        self.admins = []
+        self.descriptions = []
         self.count_ban_accounts = 0
         self.count_limited_accounts = 0
         self.count_flood_accounts = 0
@@ -50,9 +52,9 @@ class Settings:
         self.flood_sessions = []
         AccountsJson.check_exists_json_accounts()
         self.load_sessions()
-        self.load_proxies_from_txt()
-        self.bind_proxy()
-        self.delete_used_proxies_from_txt()
+        # self.load_proxies_from_txt()
+        # self.bind_proxy()
+        # self.delete_used_proxies_from_txt()
         self.load_accounts()
         self.load_data()
 
@@ -132,29 +134,29 @@ class Settings:
             try:
                 with open(f'sessions/{session.split(".")[0]}.json', 'r') as file_json:
                     json_ = json.loads(file_json.read())
-                    proxy = json_.get("ProxyAccount", False)
-                    if proxy:
-                        client = self.get_client(session, proxy)
-                        if client:
-                            if session not in accounts["active"] and session not in accounts["flood"]:
-                                accounts["active"].append(session)
-                            self.accounts[session] = client
-                            if json_.get("already_triggers", False):
-                                del json_["already_triggers"]
-                        else:
-                            Logger.info(f"Не смог сгенерировать клиент - {session}", self.red)
-
-                            if session in accounts["active"]:
-                                accounts["active"].remove(session)
-                            elif session in accounts["flood"]:
-                                accounts["flood"].remove(session)
+                    # proxy = json_.get("ProxyAccount", False)
+                    # if proxy:
+                    client = self.get_client(session)
+                    if client:
+                        if session not in accounts["active"] and session not in accounts["flood"]:
+                            accounts["active"].append(session)
+                        self.accounts[session] = client
+                        if json_.get("already_triggers", False):
+                            del json_["already_triggers"]
                     else:
+                        Logger.info(f"Не смог сгенерировать клиент - {session}", self.red)
+
                         if session in accounts["active"]:
                             accounts["active"].remove(session)
                         elif session in accounts["flood"]:
                             accounts["flood"].remove(session)
+                    # else:
+                    #     if session in accounts["active"]:
+                    #         accounts["active"].remove(session)
+                    #     elif session in accounts["flood"]:
+                    #         accounts["flood"].remove(session)
                         # Добавить в без прокси
-                        counter_unbind += 1
+                        # counter_unbind += 1
             except Exception as ex:
                 print(ex)
         AccountsJson.write_json_file(accounts, "accounts.json")
@@ -183,23 +185,22 @@ class Settings:
         self.deleted_sessions = []
 
     # Метод, получения клиента телеграмм
-    def get_client(self, session, proxy):
-        proxy_ip = proxy.split(':')[0]
-        proxy_port = int(proxy.split(':')[1])
-        proxy_login = proxy.split(':')[2]
-        proxy_password = proxy.split(':')[3].split('\n')[0]
+    def get_client(self, session):
+        # proxy_ip = proxy.split(':')[0]
+        # proxy_port = int(proxy.split(':')[1])
+        # proxy_login = proxy.split(':')[2]
+        # proxy_password = proxy.split(':')[3].split('\n')[0]
         with open(f'sessions/{session.split(".")[0]}.json', 'r', encoding='utf-8') as config_account:
             json_ = json.loads(config_account.read())
         if json_.get("app_id", False) and json_.get("app_hash", False) and json_.get("app_version", False) and \
                 json_.get("sdk", False) and json_.get("device", False) and json_.get("system_lang_pack", False):
 
             lang_code = json_.get("lang_code", "ru")
-            if self.type_of_proxy == "HTTP":
-                proxy = (socks.HTTP, proxy_ip, proxy_port, True, proxy_login, proxy_password)
-            elif self.type_of_proxy == "SOCKS":
-                proxy = (socks.HTTP, proxy_ip, proxy_port, True, proxy_login, proxy_password)
+            # if self.type_of_proxy == "HTTP":
+            #     proxy = (socks.HTTP, proxy_ip, proxy_port, True, proxy_login, proxy_password)
+            # elif self.type_of_proxy == "SOCKS":
+            #     proxy = (socks.HTTP, proxy_ip, proxy_port, True, proxy_login, proxy_password)
             client = TelegramClient(session=f"sessions/{session.split('.')[0]}", api_id=json_["app_id"], api_hash=json_["app_hash"],
-                                proxy=proxy,
                                 app_version=json_["app_version"], system_version=json_["sdk"],
                                 device_model=json_["device"], lang_code=lang_code
                                 )
@@ -287,30 +288,46 @@ class Settings:
                 Logger.info(f"Не найден Json файл сессии - {session}", self.red)
         AccountsJson.write_json_file(accounts, "accounts.json")
 
-    def read_channels_from_txt(self, is_name=False):
+    def read_channels_from_txt(self, channel=False):
         with open(self.path_to_channels, "r", encoding="utf-8") as file_with_channels_read:
             lines = file_with_channels_read.readlines()
             counter = 1
             for line in lines:
-                line_split = line.strip().split(";")
                 try:
-                    if is_name:
-                        channel_users = line_split
-                        if len(channel_users) > 0:
-                            self.channels.append([channel_name, channel_users])
-                        else:
-                            Logger.info(
-                                f"Не указаны пользователи в строке - {counter}, проверьте введенные данные",
-                                self.red)
+                    if channel:
+                        channel_name = channel
+                        channel_about = line.strip()
+                        self.channels.append([channel_name, channel_about])
                     else:
+                        line_split = line.strip().split(";")
                         channel_name = line_split[0]
-                        channel_users = line_split[1:]
-                        if len(channel_users) > 0:
-                            self.channels.append([channel_name, channel_users])
-                        else:
-                            Logger.info(f"Не указаны пользователи у канала - {channel_name}, проверьте введенные данные", self.red)
+                        channel_about = line_split[1]
+                        self.channels.append([channel_name, channel_about])
                 except Exception as ex:
                     Logger.info(f"Не удалось считать канал на строке - {counter}, проверьте введенные данные!", self.red)
+                counter += 1
+
+    def read_undeleted_channels(self):
+        self.undeleted_channels = []
+        with open(self.path_to_undeleted_channels, "r", encoding="utf-8") as file:
+
+            lines = file.readlines()
+            for line in lines:
+                self.undeleted_channels.append(line.strip())
+
+    def read_admins(self):
+        with open(self.path_to_admins, "r", encoding="utf-8") as file:
+            counter = 1
+            lines = file.readlines()
+            for line in lines:
+                try:
+                    line_split = line.strip().split(";")
+                    channel_id = line_split[0]
+                    admin_bot = line_split[1]
+                    self.admins.append([channel_id, admin_bot])
+                except Exception as ex:
+                    Logger.info(f"Не удалось считать данные на строке - {counter}, проверьте введенные данные!",
+                                self.red)
                 counter += 1
 
 class AccountsJson:
