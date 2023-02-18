@@ -1,3 +1,4 @@
+import os.path
 from datetime import datetime
 
 
@@ -14,6 +15,10 @@ class Logger:
 
     @staticmethod
     def write_file(file, out_string):
+        if not os.path.exists(file):
+            with open(file, "w", encoding="utf-8") as file:
+                pass
+
         with open(file, "a", encoding="utf-8") as output_file:
             output_file.write(f"{out_string}\n")
 

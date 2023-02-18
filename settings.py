@@ -50,18 +50,23 @@ class Settings:
         self.deleted_sessions = []
         self.limited_sessions = []
         self.flood_sessions = []
+        self.avatars = []
         AccountsJson.check_exists_json_accounts()
         self.load_sessions()
-        # self.load_proxies_from_txt()
-        # self.bind_proxy()
-        # self.delete_used_proxies_from_txt()
+        self.load_proxies_from_txt()
+        self.bind_proxy()
+        self.delete_used_proxies_from_txt()
         self.load_accounts()
         self.load_data()
+
+    def read_avatars(self):
+        listdir = os.listdir("avatars")
+        for file in listdir:
+            self.avatars.append(file)
 
     def load_data(self):
         if not os.path.exists("data.json"):
             AccountsJson.write_json_file({}, "data.json")
-        data = AccountsJson.read_json_file("data.json")
 
     # Загрузка сессий
     def load_sessions(self):
@@ -134,27 +139,25 @@ class Settings:
             try:
                 with open(f'sessions/{session.split(".")[0]}.json', 'r') as file_json:
                     json_ = json.loads(file_json.read())
-                    # proxy = json_.get("ProxyAccount", False)
-                    # if proxy:
-                    client = self.get_client(session)
-                    if client:
-                        if session not in accounts["active"] and session not in accounts["flood"]:
-                            accounts["active"].append(session)
-                        self.accounts[session] = client
-                        if json_.get("already_triggers", False):
-                            del json_["already_triggers"]
-                    else:
-                        Logger.info(f"Не смог сгенерировать клиент - {session}", self.red)
+                    proxy = json_.get("ProxyAccount", False)
+                    if proxy:
+                        client = self.get_client(session, proxy)
+                        if client:
+                            if session not in accounts["active"] and session not in accounts["flood"]:
+                                accounts["active"].append(session)
+                            self.accounts[session] = client
+                        else:
+                            Logger.info(f"Не смог сгенерировать клиент - {session}", self.red)
 
+                            if session in accounts["active"]:
+                                accounts["active"].remove(session)
+                            elif session in accounts["flood"]:
+                                accounts["flood"].remove(session)
+                    else:
                         if session in accounts["active"]:
                             accounts["active"].remove(session)
                         elif session in accounts["flood"]:
                             accounts["flood"].remove(session)
-                    # else:
-                    #     if session in accounts["active"]:
-                    #         accounts["active"].remove(session)
-                    #     elif session in accounts["flood"]:
-                    #         accounts["flood"].remove(session)
                         # Добавить в без прокси
                         # counter_unbind += 1
             except Exception as ex:
@@ -185,21 +188,21 @@ class Settings:
         self.deleted_sessions = []
 
     # Метод, получения клиента телеграмм
-    def get_client(self, session):
-        # proxy_ip = proxy.split(':')[0]
-        # proxy_port = int(proxy.split(':')[1])
-        # proxy_login = proxy.split(':')[2]
-        # proxy_password = proxy.split(':')[3].split('\n')[0]
+    def get_client(self, session, proxy):
+        proxy_ip = proxy.split(':')[0]
+        proxy_port = int(proxy.split(':')[1])
+        proxy_login = proxy.split(':')[2]
+        proxy_password = proxy.split(':')[3].split('\n')[0]
         with open(f'sessions/{session.split(".")[0]}.json', 'r', encoding='utf-8') as config_account:
             json_ = json.loads(config_account.read())
         if json_.get("app_id", False) and json_.get("app_hash", False) and json_.get("app_version", False) and \
                 json_.get("sdk", False) and json_.get("device", False) and json_.get("system_lang_pack", False):
 
             lang_code = json_.get("lang_code", "ru")
-            # if self.type_of_proxy == "HTTP":
-            #     proxy = (socks.HTTP, proxy_ip, proxy_port, True, proxy_login, proxy_password)
-            # elif self.type_of_proxy == "SOCKS":
-            #     proxy = (socks.HTTP, proxy_ip, proxy_port, True, proxy_login, proxy_password)
+            if self.type_of_proxy == "HTTP":
+                proxy = (socks.HTTP, proxy_ip, proxy_port, True, proxy_login, proxy_password)
+            elif self.type_of_proxy == "SOCKS":
+                proxy = (socks.HTTP, proxy_ip, proxy_port, True, proxy_login, proxy_password)
             client = TelegramClient(session=f"sessions/{session.split('.')[0]}", api_id=json_["app_id"], api_hash=json_["app_hash"],
                                 app_version=json_["app_version"], system_version=json_["sdk"],
                                 device_model=json_["device"], lang_code=lang_code

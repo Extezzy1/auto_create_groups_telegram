@@ -1,15 +1,11 @@
 # -*- coding: utf-8 -*
-import asyncio
-import datetime
-import json
 
 import telethon
 from logger import Logger
-from telethon import functions, types
 from settings import Settings
-from telethon.errors import FloodWaitError, ChannelsTooMuchError, InvalidBufferError, AuthKeyError, AuthKeyNotFound, \
+from telethon.errors import FloodWaitError, AuthKeyError, AuthKeyNotFound, \
     UserRestrictedError, ChannelPrivateError
-from telethon import functions, types
+from telethon import functions
 
 
 # Добавить остальные экспешены
@@ -33,27 +29,30 @@ async def create_chat(settings: Settings, client: telethon.TelegramClient, sessi
                 await client.edit_permissions(chat, send_messages=False)
             if permission_show_admin:
                 await client.edit_admin(chat, await client.get_me(), anonymous=True)
-            Logger.info(f"Успешно создал группу - {channel[0]} на аккаунте - {session}", settings.gr)
+            link = (await client(functions.messages.ExportChatInviteRequest(
+                    chat
+                ))).link
+            Logger.info(f"Успешно создал группу - {link} на аккаунте - {session}", settings.gr, out_file="logs.txt")
             settings.count_created_channels += 1
-            return True, chat_id
+            return True, chat_id, link
     except UserRestrictedError as ex:
-        Logger.info("Словил спам, больше не могу создавать каналы на этом аккаунте, перевожу его в badsession", settings.red)
+        Logger.info("Словил спам, больше не могу создавать чаты на этом аккаунте, перевожу его в badsession", settings.red, out_file="logs.txt")
         return False, 0
     except FloodWaitError:
-        Logger.info(f"Словил флуд на аккаунте {session}", settings.red)
+        Logger.info(f"Словил флуд на аккаунте {session}", settings.red, out_file="logs.txt")
 
         settings.flood_sessions.append(session)
 
     except AuthKeyError as ex:
-        Logger.info("Словил бан, перемещаю в badsession", settings.red)
+        Logger.info("Словил бан, перемещаю в badsession", settings.red, out_file="logs.txt")
         settings.deleted_sessions.append(session)
 
     except AuthKeyNotFound as ex:
-        Logger.info("Словил бан, перемещаю в badsession", settings.red)
+        Logger.info("Словил бан, перемещаю в badsession", settings.red, out_file="logs.txt")
         settings.deleted_sessions.append(session)
 
     except Exception as ex:
-        Logger.info(f"Словил неизвестную ошибку {ex} на аккаунте - {session}", settings.red)
+        Logger.info(f"Словил неизвестную ошибку {ex} на аккаунте - {session}", settings.red, out_file="logs.txt")
         return False, 0
 
 
@@ -61,22 +60,22 @@ async def delete_chat(settings: Settings, client: telethon.TelegramClient, sessi
     try:
         async with client:
             result = await client(functions.channels.DeleteChannelRequest(channel_id))
-            Logger.info(f"Успешно удалил группу - {channel_name} на аккаунте - {session}", settings.gr)
+            Logger.info(f"Успешно удалил группу - {channel_name} на аккаунте - {session}", settings.gr, out_file="logs.txt")
             settings.count_created_channels += 1
             return True
 
     except AuthKeyError as ex:
-        Logger.info("Словил бан, перемещаю в badsession", settings.red)
+        Logger.info("Словил бан, перемещаю в badsession", settings.red, out_file="logs.txt")
         settings.deleted_sessions.append(session)
     except FloodWaitError:
-        Logger.info(f"Словил флуд на аккаунте {session}", settings.red)
+        Logger.info(f"Словил флуд на аккаунте {session}", settings.red, out_file="logs.txt")
         settings.flood_sessions.append(session)
     except AuthKeyNotFound as ex:
-        Logger.info("Словил бан, перемещаю в badsession", settings.red)
+        Logger.info("Словил бан, перемещаю в badsession", settings.red, out_file="logs.txt")
         settings.deleted_sessions.append(session)
 
     except Exception as ex:
-        Logger.info(f"Словил неизвестную ошибку {ex} на аккаунте - {session}", settings.red)
+        Logger.info(f"Словил неизвестную ошибку {ex} на аккаунте - {session}", settings.red, out_file="logs.txt")
         return False
 
 
@@ -84,11 +83,11 @@ async def add_admin(settings: Settings, client: telethon.TelegramClient, session
     try:
         async with client:
             await client.edit_admin(await client.get_entity(channel_id), admin_username, anonymous=True)
-            Logger.info(f"Успешно добавил бота {admin_username} в группу - {channel_id} на аккаунте - {session}", settings.gr)
+            Logger.info(f"Успешно добавил бота {admin_username} в группу - {channel_id} на аккаунте - {session}", settings.gr, out_file="logs.txt")
             settings.count_created_channels += 1
             return True
     except Exception as ex:
-        Logger.info(f"Словил неизвестную ошибку {ex} на аккаунте - {session}", settings.red)
+        Logger.info(f"Словил неизвестную ошибку {ex} на аккаунте - {session}", settings.red, out_file="logs.txt")
         return False
 
 
@@ -111,16 +110,16 @@ async def make_post(settings: Settings, client: telethon.TelegramClient, session
                 else:
                     print(await client.get_entity(int(channel_to_id)))
                     await client.send_message(await client.get_entity(int(channel_to_id)), message)
-            Logger.info(f"Успешно отправил сообщения в группу - {channel_to_id} на аккаунте - {session}", settings.gr)
+            Logger.info(f"Успешно отправил сообщения в группу - {channel_to_id} на аккаунте - {session}", settings.gr, out_file="logs.txt")
             settings.count_created_channels += 1
             return True
     except ChannelPrivateError:
-        Logger.info(f"{channel_username_from} - приватный канал, не могу переслать сообщения..", settings.red)
+        Logger.info(f"{channel_username_from} - приватный канал, не могу переслать сообщения..", settings.red, out_file="logs.txt")
     except FloodWaitError:
         Logger.info(f"Словил флуд на аккаунте {session}", settings.red)
         settings.flood_sessions.append(session)
     except Exception as ex:
-        Logger.info(f"Словил неизвестную ошибку {ex} на аккаунте - {session}", settings.red)
+        Logger.info(f"Словил неизвестную ошибку {ex} на аккаунте - {session}", settings.red, out_file="logs.txt")
         return False
 
 

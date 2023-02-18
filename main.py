@@ -1,4 +1,5 @@
-# -*- coding: utf-8 -*
+#!/usr/bin/python
+# -*- coding: utf-8 -*-
 import datetime
 import os.path
 import time
@@ -16,17 +17,24 @@ start_time = datetime.datetime.now()
 
 try:
     config = ConfigParser(inline_comment_prefixes=("#"))
-    config.read("config.ini", encoding="utf-8")
+    config.read("config.ini")
     delay_after_account = int(config["DELAY"]["delay_after_account"])
-    path_to_channels = config["PATH_TO_TXT"]["path_to_channels"]
-    path_to_undeleted_channels = config["PATH_TO_TXT"]["path_to_undeleted_channels"]
+    count_accounts_per_proxy = int(config["PROXY"]["count_accounts_per_proxy"])
+    auto_reconnect = config["PROXY"]["auto_reconnect"]
+    proxy_timeout = int(config["PROXY"]["proxy_timeout"])
+    type_of_proxy = config["PROXY"]["type_of_proxy"]
+    if type_of_proxy != "HTTP" and type_of_proxy != "SOCKS":
+        raise ValueError("Неверное значение типа прокси (Поддерживаемые форматы - HTTP и SOCKS)!")
+    path_to_channels = config["PATH_TO_TXT"]["path_to_chats"]
+    path_to_undeleted_channels = config["PATH_TO_TXT"]["path_to_undeleted_chats"]
     path_to_admins = config["PATH_TO_TXT"]["path_to_admins"]
+    count_chat_per_account = int(config["ACCOUNTS"]["count_chat_per_account"])
     if not (os.path.exists(path_to_channels) and os.path.isfile(path_to_channels)):
-        raise ValueError("Неверный путь к файлу с каналами!")
+        raise ValueError("Неверный путь к файлу с чатами!")
     if not (os.path.exists(path_to_undeleted_channels) and os.path.isfile(path_to_undeleted_channels)):
-        raise ValueError("Неверный путь к файлу с каналами!")
+        raise ValueError("Неверный путь к файлу с неудаляемыми чатами!")
     if not (os.path.exists(path_to_admins) and os.path.isfile(path_to_admins)):
-        raise ValueError("Неверный путь к файлу с каналами!")
+        raise ValueError("Неверный путь к файлу с администраторами!")
 
 
 except ValueError as ex:
@@ -45,11 +53,11 @@ async def all():
             settings.check_flood_sessions()
             action = input("Выбор задания\n"
                            "\t1. Создание чатов\n"
-                           "\t2. Удаление всех каналов\n"
-                           "\t3. Удаление каналов, кроме списка\n"
+                           "\t2. Удаление всех чатов\n"
+                           "\t3. Удаление чатов, кроме списка\n"
                            "\t4. Отправка постов\n"
                            "\t5. Добавление админов\n"
-                           "\t6. Поиск создателей чатов/каналов\n"
+                           "\t6. Поиск создателей чатов\n"
                            "Введите номер пункта: ")
             if action == "1":
                 type_of_name = input("Имена генерировать из тхт или везде одно имя??\n\t1 - тхт\n\t2 - везде одно имя\nВведите цифру: ")
@@ -58,10 +66,9 @@ async def all():
                         "Имена генерировать из тхт или везде одно имя??\n\t1 - тхт\n\t2 - везде одно имя\nВведите цифру: ")
 
                 if type_of_name == "2":
-                    name_of_channel = input("Введите имя для каждого канала: ")
+                    name_of_channel = input("Введите имя для каждого чата: ")
                     while len(name_of_channel) == 0:
-                        name_of_channel = input("Имя не может быть пустым! Введите имя для каждого канала: ")
-
+                        name_of_channel = input("Имя не может быть пустым! Введите имя для каждого чата: ")
 
                 is_avatar = input("Ставить аватары? да/нет: ").lower()
                 while is_avatar != "да" and is_avatar != "нет":
@@ -70,6 +77,7 @@ async def all():
 
                 if is_avatar == "да":
                     is_avatar = True
+                    settings.read_avatars()
                 else:
                     is_avatar = False
 
@@ -92,14 +100,17 @@ async def all():
                 else:
                     permissions_show_admin = False
 
-                Logger.info("Считываю каналы для создания...", settings.gr)
+                Logger.info("Считываю чаты для создания...", settings.gr)
                 if type_of_name == "1":
                     settings.read_channels_from_txt()
                 else:
                     settings.read_channels_from_txt(name_of_channel)
-                Logger.info(f"Считано {len(settings.channels)} каналов, начинаю создание...", settings.gr)
+                Logger.info(f"Считано {len(settings.channels)} чатов, начинаю создание...", settings.gr)
+
                 while len(settings.channels) > 0 and len(accounts["active"]) > 0:
+
                     channel = settings.channels.pop(0)
+
                     if len(active_accounts) > 0:
                         session = active_accounts.pop(0)
                     else:
@@ -108,12 +119,16 @@ async def all():
                         if len(active_accounts) > 0:
                             session = active_accounts.pop(0)
                         else:
-                            Logger.info("Досрочно завершил создание каналов по причине - кончились аккаунты", settings.ye)
+                            Logger.info("Досрочно завершил создание чатов по причине - кончились аккаунты", settings.ye, out_file="logs.txt")
                             break
-                    if is_avatar:
-                        # Сделать чтение аватарок
 
-                        path_to_avatar = "avatars/"
+                    if len(settings.avatars) > 0:
+                        path_to_avatar = f"avatars/{settings.avatars.pop(0)}"
+                    else:
+                        Logger.info("Закончились аватарки, продолжаю создание чатов без аватарок", settings.ye)
+                        is_avatar = False
+
+                    if is_avatar:
 
                         result = await channels_script.create_chat(settings, settings.accounts[session], session, channel,
                                                           is_avatar, permissions_write_to_chat, permissions_show_admin,
@@ -121,9 +136,9 @@ async def all():
                         if result[0]:
                             data = AccountsJson.read_json_file("data.json")
                             if not data.get(session, False):
-                                data[session] = [[result[1], channel[0]]]
+                                data[session] = [[result[1], channel[0], result[2]]]
                             else:
-                                data[session].append([result[1], channel[0]])
+                                data[session].append([result[1], channel[0], result[2]])
                             AccountsJson.write_json_file(data, "data.json")
 
                     else:
@@ -132,26 +147,26 @@ async def all():
                         if result[0]:
                             data = AccountsJson.read_json_file("data.json")
                             if not data.get(session, False):
-                                data[session] = [[result[1], channel[0]]]
+                                data[session] = [[result[1], channel[0], result[2]]]
                             else:
-                                data[session].append([result[1], channel[0]])
+                                data[session].append([result[1], channel[0], result[2]])
                             AccountsJson.write_json_file(data, "data.json")
 
                     time.sleep(delay_after_account)
-                Logger.info(f"Завершил создание каналов! Было создано {settings.count_created_channels} каналов!", settings.gr)
+                Logger.info(f"Завершил создание чатов! Было создано {settings.count_created_channels} чатов!", settings.gr)
                 settings.count_created_channels = 0
             elif action == "2":
-                confirmation = input("Точно удаляем все каналы?? да/нет: ").lower()
+                confirmation = input("Точно удаляем все чаты?? да/нет: ").lower()
 
                 while confirmation != "да" and confirmation != "нет":
-                    confirmation = input("Точно удаляем все каналы?? да/нет: ").lower()
+                    confirmation = input("Точно удаляем все чаты?? да/нет: ").lower()
 
                 if confirmation == "да":
-                    Logger.info("Начинаю удаление всех каналов...", settings.ye)
+                    Logger.info("Начинаю удаление всех чатов...", settings.ye)
                     data = AccountsJson.read_json_file("data.json")
                     for session in data:
                         if session not in accounts["active"]:
-                            Logger.info(f"Не смог удалить каналы привязанные к [{session}], так как аккаунт [{session}] не активен, пропускаю..", settings.red)
+                            Logger.info(f"Не смог удалить чаты привязанные к [{session}], так как аккаунт [{session}] не активен, пропускаю..", settings.red, out_file="logs.txt")
                             continue
                         for channel in data[session]:
                             if await channels_script.delete_chat(settings, settings.accounts[session], session, channel[0], channel[1]):
@@ -163,24 +178,24 @@ async def all():
 
             elif action == "3":
                 
-                confirmation = input("Точно удаляем каналы?? да/нет: ").lower()
+                confirmation = input("Точно удаляем чаты?? да/нет: ").lower()
 
                 while confirmation != "да" and confirmation != "нет":
-                    confirmation = input("Точно удаляем все каналы?? да/нет: ").lower()
+                    confirmation = input("Точно удаляем все чаты?? да/нет: ").lower()
 
                 if confirmation == "да":
 
-                    Logger.info("Считываю каналы, которые не нужно удалять...", settings.ye)
+                    Logger.info("Считываю чаты, которые не нужно удалять...", settings.ye)
                     settings.read_undeleted_channels()
-                    Logger.info(f"Считал {len(settings.undeleted_channels)} каналов.", settings.gr)
+                    Logger.info(f"Считал {len(settings.undeleted_channels)} чатов.", settings.gr)
 
-                    Logger.info("Начинаю удаление всех каналов...", settings.ye)
+                    Logger.info("Начинаю удаление всех чатов...", settings.ye)
                     data = AccountsJson.read_json_file("data.json")
                     for session in data:
                         if session not in accounts["active"]:
                             Logger.info(
-                                f"Не смог удалить каналы привязанные к [{session}], так как аккаунт [{session}] не активен, пропускаю..",
-                                settings.red)
+                                f"Не смог удалить чаты привязанные к [{session}], так как аккаунт [{session}] не активен, пропускаю..",
+                                settings.red, out_file="logs.txt")
                             continue
                         for channel in data[session]:
                             if not (channel[0] in settings.undeleted_channels or channel[1] in settings.undeleted_channels):
@@ -217,8 +232,8 @@ async def all():
                 for session in data:
                     if session not in accounts["active"]:
                         Logger.info(
-                            f"Не смог удалить каналы привязанные к [{session}], так как аккаунт [{session}] не активен, пропускаю..",
-                            settings.red)
+                            f"Не смог удалить чаты привязанные к [{session}], так как аккаунт [{session}] не активен, пропускаю..",
+                            settings.red, out_file="logs.txt")
                         continue
                     for channel in data[session]:
                         await channels_script.make_post(settings, settings.accounts[session], session, channel_from, id_from, id_to, channel[0], type_of_post)
@@ -237,8 +252,8 @@ async def all():
                     for session in data:
                         if session not in accounts["active"]:
                             Logger.info(
-                                f"Не смог добавить {admin_bot} в администраторы канала {channel_id}, так как аккаунт [{session}] не активен, пропускаю..",
-                                settings.red)
+                                f"Не смог добавить {admin_bot} в администраторы чата {channel_id}, так как аккаунт [{session}] не активен, пропускаю..",
+                                settings.red, out_file="logs.txt")
                             continue
                         for channel in data[session]:
                             if channel[0] == int(channel_id):
@@ -246,15 +261,15 @@ async def all():
                                 await channels_script.add_admin(settings, settings.accounts[session], session,
                                                                 int(channel_id), admin_bot)
 
-                Logger.info("Закончил добавление администраторов в каналы!", settings.gr)
+                Logger.info("Закончил добавление администраторов в чаты!", settings.gr)
 
             elif action == "6":
                 Logger.info("Считываю данные....", settings.ye)
                 data = AccountsJson.read_json_file("data.json")
                 for session in data:
                     for channel in data[session]:
-                        Logger.info(f"Аккаунт - [{session}] создал канал [{channel[1]}] с id - [{channel[0]}]", settings.purple)
-                Logger.info("Закончил вывод созданных каналов", settings.gr)
+                        Logger.info(f"Аккаунт - [{session}] создал чат [{channel[2]}] с id - [{channel[0]}]", settings.purple, out_file="logs.txt")
+                Logger.info("Закончил вывод созданных чатов", settings.gr)
             else:
                 Logger.info("Действие должно быть числом от 1 до 9!", settings.red)
             settings.delete_sessions()
