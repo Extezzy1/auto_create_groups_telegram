@@ -27,9 +27,10 @@ class Settings:
     SOCIAL_VTOPE = "m"
 
     def __init__(self, path_to_channels, path_to_admins,
-                 path_to_undeleted_channels):
+                 path_to_undeleted_channels, count_accounts_per_proxy, type_of_proxy):
         self.file_log = "logs.txt"
-
+        self.type_of_proxy = type_of_proxy
+        self.count_accounts_per_proxy = count_accounts_per_proxy
         self.path_to_admins = path_to_admins
         self.path_to_undeleted_channels = path_to_undeleted_channels
         self.path_to_channels = path_to_channels
@@ -189,29 +190,32 @@ class Settings:
 
     # Метод, получения клиента телеграмм
     def get_client(self, session, proxy):
-        proxy_ip = proxy.split(':')[0]
-        proxy_port = int(proxy.split(':')[1])
-        proxy_login = proxy.split(':')[2]
-        proxy_password = proxy.split(':')[3].split('\n')[0]
-        with open(f'sessions/{session.split(".")[0]}.json', 'r', encoding='utf-8') as config_account:
-            json_ = json.loads(config_account.read())
-        if json_.get("app_id", False) and json_.get("app_hash", False) and json_.get("app_version", False) and \
-                json_.get("sdk", False) and json_.get("device", False) and json_.get("system_lang_pack", False):
+        try:
+            proxy_ip = proxy.split(':')[0]
+            proxy_port = int(proxy.split(':')[1])
+            proxy_login = proxy.split(':')[2]
+            proxy_password = proxy.split(':')[3].split('\n')[0]
+            with open(f'sessions/{session.split(".")[0]}.json', 'r', encoding='utf-8') as config_account:
+                json_ = json.loads(config_account.read())
+            if json_.get("app_id", False) and json_.get("app_hash", False) and json_.get("app_version", False) and \
+                    json_.get("sdk", False) and json_.get("device", False) and json_.get("system_lang_pack", False):
 
-            lang_code = json_.get("lang_code", "ru")
-            if self.type_of_proxy == "HTTP":
-                proxy = (socks.HTTP, proxy_ip, proxy_port, True, proxy_login, proxy_password)
-            elif self.type_of_proxy == "SOCKS":
-                proxy = (socks.HTTP, proxy_ip, proxy_port, True, proxy_login, proxy_password)
-            client = TelegramClient(session=f"sessions/{session.split('.')[0]}", api_id=json_["app_id"], api_hash=json_["app_hash"],
-                                app_version=json_["app_version"], system_version=json_["sdk"],
-                                device_model=json_["device"], lang_code=lang_code
-                                )
+                lang_code = json_.get("lang_code", "ru")
+                if self.type_of_proxy == "HTTP":
+                    proxy = (socks.HTTP, proxy_ip, proxy_port, True, proxy_login, proxy_password)
+                elif self.type_of_proxy == "SOCKS":
+                    proxy = (socks.HTTP, proxy_ip, proxy_port, True, proxy_login, proxy_password)
+                client = TelegramClient(session=f"sessions/{session.split('.')[0]}", api_id=json_["app_id"], api_hash=json_["app_hash"],
+                                    app_version=json_["app_version"], system_version=json_["sdk"],
+                                    device_model=json_["device"], lang_code=lang_code
+                                    )
 
-        else:
-            Logger.info(f'Подан неверный json - {session.split(".")[0]}.json, перемещаю аккаунт в bad',self.red, out_file=self.file_log)
-            client = False
-        return client
+            else:
+                Logger.info(f'Подан неверный json - {session.split(".")[0]}.json, перемещаю аккаунт в bad',self.red, out_file=self.file_log)
+                client = False
+            return client
+        except Exception as ex:
+            pass
 
     # Метод, перемеющающий сессии и максимальный количеством подписок
     def delete_limited_session(self):

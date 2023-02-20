@@ -108,20 +108,40 @@ async def all():
                 Logger.info(f"Считано {len(settings.channels)} чатов, начинаю создание...", settings.gr)
 
                 while len(settings.channels) > 0 and len(accounts["active"]) > 0:
-
-                    channel = settings.channels.pop(0)
+                    data = AccountsJson.read_json_file("data.json")
 
                     if len(active_accounts) > 0:
                         session = active_accounts.pop(0)
+                        is_limited_sessions = False
+                        for item in data:
+
+                            if len(data[item]) >= count_chat_per_account:
+                                accounts["active"].remove(session)
+                                accounts["limited"].append(session)
+                                is_limited_sessions = True
+                                break
+                        if is_limited_sessions:
+                            continue
                     else:
+
                         accounts = AccountsJson.read_json_file("accounts.json")
                         active_accounts = accounts["active"]
                         if len(active_accounts) > 0:
                             session = active_accounts.pop(0)
+                            is_limited_sessions = False
+                            for item in data:
+
+                                if len(data[item]) >= count_chat_per_account:
+                                    accounts["active"].remove(session)
+                                    accounts["limited"].append(session)
+                                    is_limited_sessions = True
+                                    break
+                            if is_limited_sessions:
+                                continue
                         else:
                             Logger.info("Досрочно завершил создание чатов по причине - кончились аккаунты", settings.ye, out_file="logs.txt")
                             break
-
+                    channel = settings.channels.pop(0)
                     if len(settings.avatars) > 0:
                         path_to_avatar = f"avatars/{settings.avatars.pop(0)}"
                     else:
@@ -165,7 +185,7 @@ async def all():
                     Logger.info("Начинаю удаление всех чатов...", settings.ye)
                     data = AccountsJson.read_json_file("data.json")
                     for session in data:
-                        if session not in accounts["active"]:
+                        if session not in accounts["active"] and session not in accounts["limited"]:
                             Logger.info(f"Не смог удалить чаты привязанные к [{session}], так как аккаунт [{session}] не активен, пропускаю..", settings.red, out_file="logs.txt")
                             continue
                         for channel in data[session]:
@@ -192,7 +212,7 @@ async def all():
                     Logger.info("Начинаю удаление всех чатов...", settings.ye)
                     data = AccountsJson.read_json_file("data.json")
                     for session in data:
-                        if session not in accounts["active"]:
+                        if session not in accounts["active"] and session not in accounts["limited"]:
                             Logger.info(
                                 f"Не смог удалить чаты привязанные к [{session}], так как аккаунт [{session}] не активен, пропускаю..",
                                 settings.red, out_file="logs.txt")
@@ -230,7 +250,7 @@ async def all():
                 id_to = int(id_to)
                 data = AccountsJson.read_json_file("data.json")
                 for session in data:
-                    if session not in accounts["active"]:
+                    if session not in accounts["active"] and session not in accounts["limited"]:
                         Logger.info(
                             f"Не смог удалить чаты привязанные к [{session}], так как аккаунт [{session}] не активен, пропускаю..",
                             settings.red, out_file="logs.txt")
@@ -250,7 +270,7 @@ async def all():
 
                     admin_bot = channel_admin[1]
                     for session in data:
-                        if session not in accounts["active"]:
+                        if session not in accounts["active"] and session not in accounts["limited"]:
                             Logger.info(
                                 f"Не смог добавить {admin_bot} в администраторы чата {channel_id}, так как аккаунт [{session}] не активен, пропускаю..",
                                 settings.red, out_file="logs.txt")
@@ -273,7 +293,7 @@ async def all():
             else:
                 Logger.info("Действие должно быть числом от 1 до 9!", settings.red)
             settings.delete_sessions()
-            settings.delete_limited_session()
+            # settings.delete_limited_session()
             settings.move_flood_sessions()
             accounts = AccountsJson.read_json_file("accounts.json")
             active_accounts = accounts["active"]
@@ -286,7 +306,8 @@ async def all():
 
 if __name__ == '__main__':
         settings = Settings(path_to_channels=path_to_channels,path_to_admins=path_to_admins,
-                            path_to_undeleted_channels=path_to_undeleted_channels)
+                            path_to_undeleted_channels=path_to_undeleted_channels, count_accounts_per_proxy=count_accounts_per_proxy,
+                            type_of_proxy=type_of_proxy)
         loop = asyncio.get_event_loop()
         loop.run_until_complete(all())
         input("Нажмите enter для выхода..")
