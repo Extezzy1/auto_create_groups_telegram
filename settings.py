@@ -22,21 +22,19 @@ class Settings:
     blue = "\033[34m"
     purple = "\033[35m"
     turquoise = "\033[36m"
-    UID = uuid.uuid1()
-    DEVISE = hashlib.md5(str(UID.node).encode("utf-8")).hexdigest()
-    SOCIAL_VTOPE = "m"
 
     def __init__(self, path_to_channels, path_to_admins,
-                 path_to_undeleted_channels, count_accounts_per_proxy, type_of_proxy):
+                 path_to_undeleted_channels, type_of_proxy, path_to_only_sending):
         self.file_log = "logs.txt"
         self.type_of_proxy = type_of_proxy
-        self.count_accounts_per_proxy = count_accounts_per_proxy
         self.path_to_admins = path_to_admins
         self.path_to_undeleted_channels = path_to_undeleted_channels
         self.path_to_channels = path_to_channels
+        self.path_to_only_sending = path_to_only_sending
         self.count_created_channels = 0
         self.channels = []
         self.undeleted_channels = []
+        self.only_sending_chats = []
         self.admins = []
         self.descriptions = []
         self.count_ban_accounts = 0
@@ -55,9 +53,9 @@ class Settings:
         AccountsJson.check_exists_json_accounts()
         self.load_sessions()
         self.load_proxies_from_txt()
-        self.bind_proxy()
-        self.delete_used_proxies_from_txt()
-        self.load_accounts()
+        # self.bind_proxy()
+        # self.delete_used_proxies_from_txt()
+        # self.load_accounts()
         self.load_data()
 
     def read_avatars(self):
@@ -69,16 +67,25 @@ class Settings:
         if not os.path.exists("data.json"):
             AccountsJson.write_json_file({}, "data.json")
 
+    def read_only_sending_chats(self):
+        with open(self.path_to_only_sending, "r", encoding="utf-8") as file:
+            lines = file.readlines()
+            for line in lines:
+                self.only_sending_chats.append(line.strip())
+
+
     # Загрузка сессий
     def load_sessions(self):
         accounts = AccountsJson.read_json_file("accounts.json")
         self.sessions = []
         listdir = os.listdir('sessions')
-        for session in listdir:
-            if session.split(".")[1] == "session":
-                if session not in accounts["bad"] and session not in \
-                        accounts["limited"] and session not in accounts["flood"] and session not in accounts["active"]:
-                    self.sessions.append(session)
+        for file in listdir:
+            if os.path.isfile(f"sessions/{file}"):
+                if file.split(".")[1] == "session":
+                    if file not in accounts["bad"] and file not in \
+                            accounts["limited"] and file not in accounts["flood"] and file not in accounts["active"]:
+                        accounts["active"].append(file)
+        AccountsJson.write_json_file(accounts, "accounts.json")
 
     # Загрузка проксей из тхт файла
     def load_proxies_from_txt(self):
@@ -88,10 +95,17 @@ class Settings:
                 try:
                     line_split = line.strip().split(":")
                     if len(line_split) == 4:
-                        self.proxies.append(line.strip())
+                        proxy_ip = line_split[0]
+                        proxy_port = int(line_split[1])
+                        proxy_login = line_split[2]
+                        proxy_password = line_split[3]
+                        if self.type_of_proxy == "HTTP":
+                            proxy = (socks.HTTP, proxy_ip, proxy_port, True, proxy_login, proxy_password)
+                        elif self.type_of_proxy == "SOCKS":
+                            proxy = (socks.SOCKS5, proxy_ip, proxy_port, True, proxy_login, proxy_password)
+                        self.proxies.append(proxy)
                 except:
                     Logger.info(f"Прокси {line.strip()} неверного формата!", self.red)
-        self.proxies = self.proxies * self.count_accounts_per_proxy
 
     # Привязка прокси к аккаунтам
     def bind_proxy(self):
@@ -132,38 +146,38 @@ class Settings:
         self.proxies = []
 
     # Зазругзка аккаунтов
-    def load_accounts(self):
-        accounts = AccountsJson.read_json_file("accounts.json")
-        all_sessions = accounts["active"] + accounts["flood"] + self.sessions
-        counter_unbind = 0  # Хранит в себе количество аккаунтов без привязанного прокси
-        for session in all_sessions:
-            try:
-                with open(f'sessions/{session.split(".")[0]}.json', 'r') as file_json:
-                    json_ = json.loads(file_json.read())
-                    proxy = json_.get("ProxyAccount", False)
-                    if proxy:
-                        client = self.get_client(session, proxy)
-                        if client:
-                            if session not in accounts["active"] and session not in accounts["flood"]:
-                                accounts["active"].append(session)
-                            self.accounts[session] = client
-                        else:
-                            Logger.info(f"Не смог сгенерировать клиент - {session}", self.red)
-
-                            if session in accounts["active"]:
-                                accounts["active"].remove(session)
-                            elif session in accounts["flood"]:
-                                accounts["flood"].remove(session)
-                    else:
-                        if session in accounts["active"]:
-                            accounts["active"].remove(session)
-                        elif session in accounts["flood"]:
-                            accounts["flood"].remove(session)
-                        # Добавить в без прокси
-                        # counter_unbind += 1
-            except Exception as ex:
-                print(ex)
-        AccountsJson.write_json_file(accounts, "accounts.json")
+    # def load_accounts(self):
+    #     accounts = AccountsJson.read_json_file("accounts.json")
+    #     all_sessions = accounts["active"] + accounts["flood"] + self.sessions
+    #     counter_unbind = 0  # Хранит в себе количество аккаунтов без привязанного прокси
+    #     for session in all_sessions:
+    #         try:
+    #             with open(f'sessions/{session.split(".")[0]}.json', 'r') as file_json:
+    #                 # json_ = json.loads(file_json.read())
+    #                 # proxy = json_.get("ProxyAccount", False)
+    #                 # if proxy:
+    #                 # client = self.get_client(session)
+    #                 # if client:
+    #                 #     if session not in accounts["active"] and session not in accounts["flood"]:
+    #                 #         accounts["active"].append(session)
+    #                 #     self.accounts[session] = client
+    #                 # else:
+    #                 #     Logger.info(f"Не смог сгенерировать клиент - {session}", self.red)
+    #                 #
+    #                 #     if session in accounts["active"]:
+    #                 #         accounts["active"].remove(session)
+    #                 #     elif session in accounts["flood"]:
+    #                 #         accounts["flood"].remove(session)
+    #                 # # else:
+    #                 #     if session in accounts["active"]:
+    #                 #         accounts["active"].remove(session)
+    #                 #     elif session in accounts["flood"]:
+    #                 #         accounts["flood"].remove(session)
+    #                     # Добавить в без прокси
+    #                     # counter_unbind += 1
+    #         except Exception as ex:
+    #             print(ex)
+    #     AccountsJson.write_json_file(accounts, "accounts.json")
         # Logger.info(f"В работу запущено {len(accounts['active'])} аккаунтов!", self.gr)
         # Logger.info(f"Количество аккаунтов без прокси - {counter_unbind}", self.ye)
         # message = f"<b>Начинаю работу</b>\n\nВ работу запущено <b>{len(accounts['active'])}</b> аккаунтов!\n" \
@@ -191,31 +205,29 @@ class Settings:
     # Метод, получения клиента телеграмм
     def get_client(self, session, proxy):
         try:
-            proxy_ip = proxy.split(':')[0]
-            proxy_port = int(proxy.split(':')[1])
-            proxy_login = proxy.split(':')[2]
-            proxy_password = proxy.split(':')[3].split('\n')[0]
+            # proxy_ip = proxy.split(':')[0]
+            # proxy_port = int(proxy.split(':')[1])
+            # proxy_login = proxy.split(':')[2]
+            # proxy_password = proxy.split(':')[3].split('\n')[0]
             with open(f'sessions/{session.split(".")[0]}.json', 'r', encoding='utf-8') as config_account:
                 json_ = json.loads(config_account.read())
             if json_.get("app_id", False) and json_.get("app_hash", False) and json_.get("app_version", False) and \
                     json_.get("sdk", False) and json_.get("device", False) and json_.get("system_lang_pack", False):
 
                 lang_code = json_.get("lang_code", "ru")
-                if self.type_of_proxy == "HTTP":
-                    proxy = (socks.HTTP, proxy_ip, proxy_port, True, proxy_login, proxy_password)
-                elif self.type_of_proxy == "SOCKS":
-                    proxy = (socks.HTTP, proxy_ip, proxy_port, True, proxy_login, proxy_password)
-                client = TelegramClient(session=f"sessions/{session.split('.')[0]}", api_id=json_["app_id"], api_hash=json_["app_hash"],
+                # if self.type_of_proxy == "HTTP":
+                #     proxy = (socks.HTTP, proxy_ip, proxy_port, True, proxy_login, proxy_password)
+                # elif self.type_of_proxy == "SOCKS":
+                #     proxy = (socks.HTTP, proxy_ip, proxy_port, True, proxy_login, proxy_password)
+                client = TelegramClient(session=f"sessions/{session}", api_id=json_["app_id"], api_hash=json_["app_hash"],
                                     app_version=json_["app_version"], system_version=json_["sdk"],
-                                    device_model=json_["device"], lang_code=lang_code
-                                    )
-
+                                    device_model=json_["device"], lang_code=lang_code, system_lang_code=json_["system_lang_pack"], proxy=proxy)
             else:
                 Logger.info(f'Подан неверный json - {session.split(".")[0]}.json, перемещаю аккаунт в bad',self.red, out_file=self.file_log)
                 client = False
             return client
         except Exception as ex:
-            pass
+            print(ex)
 
     # Метод, перемеющающий сессии и максимальный количеством подписок
     def delete_limited_session(self):

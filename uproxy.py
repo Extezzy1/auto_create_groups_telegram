@@ -3,7 +3,7 @@ import json
 import os
 
 counter = 0
-dirname = "sessions"
+dirname = input("Введите название папки с сессиями: ")
 listdir = os.listdir(dirname)
 for item in listdir:
     if item.split(".")[1] == "json":
