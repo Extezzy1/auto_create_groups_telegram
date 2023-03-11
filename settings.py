@@ -1,6 +1,8 @@
 # -*- coding: utf-8 -*
 import json
 import os
+import random
+import re
 import shutil
 
 import socks
@@ -24,18 +26,27 @@ class Settings:
     turquoise = "\033[36m"
 
     def __init__(self, path_to_channels, path_to_admins,
-                 path_to_undeleted_channels, type_of_proxy, path_to_only_sending):
+                 path_to_undeleted_channels, type_of_proxy, path_to_only_sending, path_to_edit_photo,
+                 path_to_edit_title, path_to_send_message):
         self.file_log = "logs.txt"
         self.type_of_proxy = type_of_proxy
         self.path_to_admins = path_to_admins
         self.path_to_undeleted_channels = path_to_undeleted_channels
         self.path_to_channels = path_to_channels
         self.path_to_only_sending = path_to_only_sending
+        self.path_to_edit_photo = path_to_edit_photo
+        self.path_to_edit_title = path_to_edit_title
+        self.path_to_send_message = path_to_send_message
         self.count_created_channels = 0
         self.channels = []
         self.undeleted_channels = []
         self.only_sending_chats = []
+        self.edit_title_chats = []
+        self.edit_photo_chats = []
+        self.edit_title_about_chats = []
+        self.send_message = []
         self.admins = []
+        self.send_media = []
         self.descriptions = []
         self.count_ban_accounts = 0
         self.count_limited_accounts = 0
@@ -59,6 +70,7 @@ class Settings:
         self.load_data()
 
     def read_avatars(self):
+        self.avatars = []
         listdir = os.listdir("avatars")
         for file in listdir:
             self.avatars.append(file)
@@ -67,12 +79,50 @@ class Settings:
         if not os.path.exists("data.json"):
             AccountsJson.write_json_file({}, "data.json")
 
+    def read_video_and_photo_for_send(self):
+        listdir = os.listdir("files/for_posts")
+        for file in listdir:
+            self.send_media.append(file)
+
+    def read_send_message_txt(self):
+        self.send_message = []
+        with open(self.path_to_send_message, "r", encoding="utf-8") as file:
+            lines = file.readlines()
+            for line in lines:
+                try:
+                    line_split = line.strip().split(";")
+                    chat_link = line_split[0]
+                    message_text = re.sub(r"{(.+?)}", lambda x: random.choice(x.group(1).split("|")), line_split[1])
+                    self.send_message.append([chat_link, message_text])
+                except Exception:
+                    pass
+
     def read_only_sending_chats(self):
+        self.only_sending_chats = []
         with open(self.path_to_only_sending, "r", encoding="utf-8") as file:
             lines = file.readlines()
             for line in lines:
                 self.only_sending_chats.append(line.strip())
 
+    def read_edit_title_chats(self):
+        self.edit_title_chats = []
+        with open(self.path_to_edit_title, "r", encoding="utf-8") as file:
+            lines = file.readlines()
+            for line in lines:
+                try:
+                    line_split = line.strip().split(";")
+                    chat_link = line_split[0]
+                    chat_name = re.sub(r"{(.+?)}", lambda x: random.choice(x.group(1).split("|")), line_split[1])
+                    self.edit_title_chats.append([chat_link, chat_name])
+                except Exception:
+                    pass
+
+    def read_edit_photo_chats(self):
+        self.edit_photo_chats = []
+        with open(self.path_to_edit_photo, "r", encoding="utf-8") as file:
+            lines = file.readlines()
+            for line in lines:
+                self.edit_photo_chats.append(line.strip())
 
     # Загрузка сессий
     def load_sessions(self):
@@ -145,44 +195,6 @@ class Settings:
                 file_write.write(proxy)
         self.proxies = []
 
-    # Зазругзка аккаунтов
-    # def load_accounts(self):
-    #     accounts = AccountsJson.read_json_file("accounts.json")
-    #     all_sessions = accounts["active"] + accounts["flood"] + self.sessions
-    #     counter_unbind = 0  # Хранит в себе количество аккаунтов без привязанного прокси
-    #     for session in all_sessions:
-    #         try:
-    #             with open(f'sessions/{session.split(".")[0]}.json', 'r') as file_json:
-    #                 # json_ = json.loads(file_json.read())
-    #                 # proxy = json_.get("ProxyAccount", False)
-    #                 # if proxy:
-    #                 # client = self.get_client(session)
-    #                 # if client:
-    #                 #     if session not in accounts["active"] and session not in accounts["flood"]:
-    #                 #         accounts["active"].append(session)
-    #                 #     self.accounts[session] = client
-    #                 # else:
-    #                 #     Logger.info(f"Не смог сгенерировать клиент - {session}", self.red)
-    #                 #
-    #                 #     if session in accounts["active"]:
-    #                 #         accounts["active"].remove(session)
-    #                 #     elif session in accounts["flood"]:
-    #                 #         accounts["flood"].remove(session)
-    #                 # # else:
-    #                 #     if session in accounts["active"]:
-    #                 #         accounts["active"].remove(session)
-    #                 #     elif session in accounts["flood"]:
-    #                 #         accounts["flood"].remove(session)
-    #                     # Добавить в без прокси
-    #                     # counter_unbind += 1
-    #         except Exception as ex:
-    #             print(ex)
-    #     AccountsJson.write_json_file(accounts, "accounts.json")
-        # Logger.info(f"В работу запущено {len(accounts['active'])} аккаунтов!", self.gr)
-        # Logger.info(f"Количество аккаунтов без прокси - {counter_unbind}", self.ye)
-        # message = f"<b>Начинаю работу</b>\n\nВ работу запущено <b>{len(accounts['active'])}</b> аккаунтов!\n" \
-        #           f"Количество аккаунтов без прокси - <b>{counter_unbind}</b>"
-        # self.send_message_to_bot(message)
 
     # Метод перемещенния забанненных сессий тг
     def delete_sessions(self):
@@ -314,12 +326,12 @@ class Settings:
             for line in lines:
                 try:
                     if channel:
-                        channel_name = channel
+                        channel_name = re.sub(r"{(.+?)}", lambda x: random.choice(x.group(1).split("|")), channel)
                         channel_about = line.strip()
                         self.channels.append([channel_name, channel_about])
                     else:
                         line_split = line.strip().split(";")
-                        channel_name = line_split[0]
+                        channel_name = re.sub(r"{(.+?)}", lambda x: random.choice(x.group(1).split("|")), line_split[0])
                         channel_about = line_split[1]
                         self.channels.append([channel_name, channel_about])
                 except Exception as ex:

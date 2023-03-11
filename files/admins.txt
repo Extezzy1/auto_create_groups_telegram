@@ -1,6 +1,2 @@
-1898383125;@aiogram_biblio_test_bot
-1526373883;@aiogram_biblio_test_bot
-1739937391;@aiogram_biblio_test_bot
-1693084578;@aiogram_biblio_test_bot
-1880395317;@aiogram_biblio_test_bot
-1575660300;@aiogram_biblio_test_bot
+https://t.me/+iZmuOt4_0VMzYmNl;@aiogram_biblio_test_bot
+https://t.me/+rgONGv4ljQ9jZDU1;@aiogram_biblio_test_bot

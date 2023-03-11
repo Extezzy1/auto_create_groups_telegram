@@ -1,4 +1,1 @@
-ip:port:login:password
-ip:port:login:password
-ip:port:login:password
-ip:port:login:password
+176.124.44.70:8000:8sQ0gJ:ye4HGZ

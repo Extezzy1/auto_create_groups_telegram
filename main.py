@@ -29,6 +29,10 @@ try:
     path_to_undeleted_channels = config["PATH_TO_TXT"]["path_to_undeleted_chats"]
     path_to_admins = config["PATH_TO_TXT"]["path_to_admins"]
     path_to_only_sending = config["PATH_TO_TXT"]["path_to_only_sending"]
+    path_to_edit_photo = config["PATH_TO_TXT"]["path_to_edit_photo"]
+    path_to_edit_title = config["PATH_TO_TXT"]["path_to_edit_title"]
+    path_to_send_message = config["PATH_TO_TXT"]["path_to_send_message"]
+
     if not (os.path.exists(path_to_channels) and os.path.isfile(path_to_channels)):
         raise ValueError("Неверный путь к файлу с чатами!")
     if not (os.path.exists(path_to_undeleted_channels) and os.path.isfile(path_to_undeleted_channels)):
@@ -37,7 +41,12 @@ try:
         raise ValueError("Неверный путь к файлу с администраторами!")
     if not (os.path.exists(path_to_only_sending) and os.path.isfile(path_to_only_sending)):
         raise ValueError("Неверный путь к файлу с чатами, в которые отпрвалять сообщения!")
-
+    if not (os.path.exists(path_to_edit_photo) and os.path.isfile(path_to_edit_photo)):
+        raise ValueError("Неверный путь к файлу с чатами, в которых изменяем аватарки!")
+    if not (os.path.exists(path_to_edit_title) and os.path.isfile(path_to_edit_title)):
+        raise ValueError("Неверный путь к файлу с чатами, в которых изменяем названия!")
+    if not (os.path.exists(path_to_send_message) and os.path.isfile(path_to_send_message)):
+        raise ValueError("Неверный путь к файлу с чатами, в которых изменяем названия!")
 
 except ValueError as ex:
     raise ValueError(ex.args[0])
@@ -52,7 +61,6 @@ async def all():
     Logger.info(f"В работу запущено {len(active_accounts)} аккаунтов!", settings.gr)
     while is_not_exit:
         try:
-            index_proxy = 0
             accounts = AccountsJson.read_json_file("accounts.json")
             settings.check_flood_sessions()
             action = input("Выбор задания\n"
@@ -62,6 +70,10 @@ async def all():
                            "\t4. Отправка постов\n"
                            "\t5. Добавление админов\n"
                            "\t6. Поиск создателей чатов\n"
+                           "\t7. Переименовать указанные чаты\n"
+                           "\t8. Изменить аватары\n"
+                           "\t9. Отправить сообщение из тхт\n"
+                           "\t10. Удаление всех постов\n"
                            "Введите номер пункта: ")
             if action == "1":
                 type_of_name = input("Имена генерировать из тхт или везде одно имя??\n\t1 - тхт\n\t2 - везде одно имя\nВведите цифру: ")
@@ -301,7 +313,7 @@ async def all():
                             while not is_posted:
                                 proxy = settings.proxies[random.randint(0, len(settings.proxies) - 1)]
                                 client = settings.get_client(session, proxy)
-                                result = await channels_script.make_post(settings, client, session, channel_from, id_from, id_to, channel[0], type_of_post)
+                                result = await channels_script.make_post(settings, client, session, channel_from, id_from, id_to, channel[0], type_of_post, channel[2])
                                 if result[0]:
                                     is_posted = True
                                 elif not result[0]:
@@ -357,6 +369,199 @@ async def all():
                     for channel in data[session]:
                         Logger.info(f"Аккаунт - [{session}] создал чат [{channel[2]}] с id - [{channel[0]}]", settings.purple, out_file="logs.txt")
                 Logger.info("Закончил вывод созданных чатов", settings.gr)
+            elif action == "7":
+                # Изменение названия чата
+                Logger.info("Считываю файл с названиями чатов...", settings.ye)
+                settings.read_edit_title_chats()
+                Logger.info(f"Успешно считал {len(settings.edit_title_chats)} чатов! Начинаю изменение...",
+                            settings.gr)
+
+                data = AccountsJson.read_json_file("data.json")
+
+                for channel_edit in settings.edit_title_chats:
+                    channel_link = channel_edit[0]
+
+                    new_title = channel_edit[1]
+                    for session in data:
+                        if session not in accounts["active"] and session not in accounts["limited"]:
+                            Logger.info(
+                                f"Не смог переименовать чат {admin_bot} в администраторы чата {channel_link}, так как аккаунт [{session}] не активен, пропускаю..",
+                                settings.red, out_file="logs.txt")
+                            continue
+                        for channel in data[session]:
+
+                            if channel[2] == channel_link:
+                                is_edit_title = False
+                                while not is_edit_title:
+                                    proxy = settings.proxies[random.randint(0, len(settings.proxies) - 1)]
+                                    client = settings.get_client(session, proxy)
+                                    result = await channels_script.edit_title_chat(settings, client,
+                                                                             session,
+                                                                             channel[0], channel[1], new_title)
+                                    if result[0]:
+                                        data[session] = [[channel[0], new_title, channel_link]]
+                                        is_edit_title = True
+                                    elif not result[0]:
+                                        if result[1]:
+                                            continue
+                                        else:
+                                            is_edit_title = True
+
+                    AccountsJson.write_json_file(accounts, "accounts.json")
+                    AccountsJson.write_json_file(data, "data.json")
+
+                Logger.info("Закончил изменение названий чатов!", settings.gr)
+            elif action == "8":
+                # Изменение аватаров
+                Logger.info("Считываю аватарки...", settings.ye)
+                settings.read_avatars()
+                if len(settings.avatars) > 0:
+                    Logger.info(f"Успешно считал {len(settings.avatars)} аватарок!",
+                                settings.gr)
+
+
+                    Logger.info("Считываю чаты для изменения...", settings.ye)
+                    settings.read_edit_photo_chats()
+                    Logger.info(f"Успешно считал {len(settings.edit_photo_chats)} чатов! Начинаю изменение",
+                                settings.gr)
+
+                    data = AccountsJson.read_json_file("data.json")
+
+                    for channel_link in settings.edit_photo_chats:
+                        path_to_avatar = f"avatars/{settings.avatars[random.randint(0, len(settings.avatars) - 1)]}"
+                        for session in data:
+                            if session not in accounts["active"] and session not in accounts["limited"]:
+                                Logger.info(
+                                    f"Не смог изменить аватарку чата {channel_link}, так как аккаунт [{session}] не активен, пропускаю..",
+                                    settings.red, out_file="logs.txt")
+                                continue
+                            for channel in data[session]:
+                                if channel[2] == channel_link:
+                                    is_edit_photo = False
+                                    while not is_edit_photo:
+                                        proxy = settings.proxies[random.randint(0, len(settings.proxies) - 1)]
+                                        client = settings.get_client(session, proxy)
+                                        result = await channels_script.edit_photo_chat(settings, client,
+                                                                                 session,
+                                                                                 channel[0], channel[1], path_to_avatar)
+                                        if result[0]:
+                                            is_edit_photo = True
+                                        elif not result[0]:
+                                            if result[1]:
+                                                continue
+                                            else:
+                                                is_edit_photo = True
+
+                        AccountsJson.write_json_file(accounts, "accounts.json")
+
+                    Logger.info("Закончил изменение аватарок чатов!", settings.gr)
+                else:
+                    Logger.info("Загрузите аватарки в папку avatars!")
+            elif action == "9":
+                # Изменение названия чата
+                Logger.info("Считываю файл с сообщениями...", settings.ye)
+                settings.read_send_message_txt()
+                Logger.info(f"Успешно считал {len(settings.send_message)} чатов! Начинаю отправку...",
+                            settings.gr)
+
+
+                is_video_or_photo = input("Отправлять видео/фото в канал? да/нет: ").lower()
+                while is_video_or_photo != "да" and is_video_or_photo != "нет":
+                    is_video_or_photo = input("Отправлять видео/фото в канал? да/нет: ").lower()
+
+                if is_video_or_photo:
+                    Logger.info("Считываю видео/фото из папки...", settings.ye)
+                    settings.read_video_and_photo_for_send()
+                Logger.info(f"Успешно считал {len(settings.send_media)} медиа для отправки!", settings.ye)
+
+                data = AccountsJson.read_json_file("data.json")
+
+                for channel_send in settings.send_message:
+                    channel_link = channel_send[0]
+                    message_text = channel_send[1]
+                    for session in data:
+                        if session not in accounts["active"] and session not in accounts["limited"]:
+                            Logger.info(
+                                f"Не смог отправить сообщения в чат {channel_link}, так как аккаунт [{session}] не активен, пропускаю..",
+                                settings.red, out_file="logs.txt")
+                            continue
+                        for channel in data[session]:
+
+                            if channel[2] == channel_link:
+                                is_send_message = False
+                                while not is_send_message:
+                                    proxy = settings.proxies[random.randint(0, len(settings.proxies) - 1)]
+                                    client = settings.get_client(session, proxy)
+                                    if is_video_or_photo and len(settings.send_media) > 0:
+                                        # Отправляет пост с видео или фото
+                                        random_media = settings.send_media[random.randint(0, len(settings.send_media) - 1)]
+                                        result = await channels_script.make_post_from_txt(settings, client,
+                                                                             session,
+                                                                             channel[0], channel[2], message_text, path_to_file=f"files/for_posts/{random_media}")
+                                    else:
+                                        result = await channels_script.make_post_from_txt(settings, client,
+                                                                             session,
+                                                                             channel[0], channel[2], message_text)
+                                    if result[0]:
+                                        is_send_message = True
+                                    elif not result[0]:
+                                        if result[1]:
+                                            continue
+                                        else:
+                                            is_send_message = True
+
+                    AccountsJson.write_json_file(accounts, "accounts.json")
+                    AccountsJson.write_json_file(data, "data.json")
+
+                Logger.info("Закончил отправку сообщений!", settings.gr)
+            elif action == "10":
+                # Изменение названия чата
+                Logger.info("Считываю файл с чатами, из которых удаляем все посты...", settings.ye)
+                settings.read_delete_posts()
+                Logger.info(f"Успешно считал {len(settings.send_message)} чатов! Начинаю отправку...",
+                            settings.gr)
+
+
+                data = AccountsJson.read_json_file("data.json")
+
+                for channel_send in settings.send_message:
+                    channel_link = channel_send[0]
+                    message_text = channel_send[1]
+                    for session in data:
+                        if session not in accounts["active"] and session not in accounts["limited"]:
+                            Logger.info(
+                                f"Не смог отправить сообщения в чат {channel_link}, так как аккаунт [{session}] не активен, пропускаю..",
+                                settings.red, out_file="logs.txt")
+                            continue
+                        for channel in data[session]:
+
+                            if channel[2] == channel_link:
+                                is_send_message = False
+                                while not is_send_message:
+                                    proxy = settings.proxies[random.randint(0, len(settings.proxies) - 1)]
+                                    client = settings.get_client(session, proxy)
+                                    if is_video_or_photo and len(settings.send_media) > 0:
+                                        # Отправляет пост с видео или фото
+                                        random_media = settings.send_media[random.randint(0, len(settings.send_media) - 1)]
+                                        result = await channels_script.make_post_from_txt(settings, client,
+                                                                             session,
+                                                                             channel[0], channel[2], message_text, path_to_file=f"files/for_posts/{random_media}")
+                                    else:
+                                        result = await channels_script.make_post_from_txt(settings, client,
+                                                                             session,
+                                                                             channel[0], channel[2], message_text)
+                                    if result[0]:
+                                        is_send_message = True
+                                    elif not result[0]:
+                                        if result[1]:
+                                            continue
+                                        else:
+                                            is_send_message = True
+
+                    AccountsJson.write_json_file(accounts, "accounts.json")
+                    AccountsJson.write_json_file(data, "data.json")
+
+                Logger.info("Закончил отправку сообщений!", settings.gr)
             else:
                 Logger.info("Действие должно быть числом от 1 до 9!", settings.red)
             settings.delete_sessions()
@@ -371,7 +576,8 @@ async def all():
 if __name__ == '__main__':
         settings = Settings(path_to_channels=path_to_channels,path_to_admins=path_to_admins,
                             path_to_undeleted_channels=path_to_undeleted_channels, type_of_proxy=type_of_proxy,
-                            path_to_only_sending=path_to_only_sending)
+                            path_to_only_sending=path_to_only_sending, path_to_edit_title=path_to_edit_title,
+                            path_to_edit_photo=path_to_edit_photo, path_to_send_message=path_to_send_message)
 
         loop = asyncio.get_event_loop()
         loop.run_until_complete(all())
