@@ -27,7 +27,7 @@ class Settings:
 
     def __init__(self, path_to_channels, path_to_admins,
                  path_to_undeleted_channels, type_of_proxy, path_to_only_sending, path_to_edit_photo,
-                 path_to_edit_title, path_to_send_message):
+                 path_to_edit_title, path_to_send_message, path_to_delete_posts):
         self.file_log = "logs.txt"
         self.type_of_proxy = type_of_proxy
         self.path_to_admins = path_to_admins
@@ -37,6 +37,7 @@ class Settings:
         self.path_to_edit_photo = path_to_edit_photo
         self.path_to_edit_title = path_to_edit_title
         self.path_to_send_message = path_to_send_message
+        self.path_to_delete_posts = path_to_delete_posts
         self.count_created_channels = 0
         self.channels = []
         self.undeleted_channels = []
@@ -45,6 +46,7 @@ class Settings:
         self.edit_photo_chats = []
         self.edit_title_about_chats = []
         self.send_message = []
+        self.delete_posts_chats = []
         self.admins = []
         self.send_media = []
         self.descriptions = []
@@ -221,21 +223,24 @@ class Settings:
             # proxy_port = int(proxy.split(':')[1])
             # proxy_login = proxy.split(':')[2]
             # proxy_password = proxy.split(':')[3].split('\n')[0]
-            with open(f'sessions/{session.split(".")[0]}.json', 'r', encoding='utf-8') as config_account:
-                json_ = json.loads(config_account.read())
-            if json_.get("app_id", False) and json_.get("app_hash", False) and json_.get("app_version", False) and \
-                    json_.get("sdk", False) and json_.get("device", False) and json_.get("system_lang_pack", False):
+            if os.path.exists(f'sessions/{session.split(".")[0]}.json'):
+                with open(f'sessions/{session.split(".")[0]}.json', 'r', encoding='utf-8') as config_account:
+                    json_ = json.loads(config_account.read())
+                if json_.get("app_id", False) and json_.get("app_hash", False) and json_.get("app_version", False) and \
+                        json_.get("sdk", False) and json_.get("device", False) and json_.get("system_lang_pack", False):
 
-                lang_code = json_.get("lang_code", "ru")
-                # if self.type_of_proxy == "HTTP":
-                #     proxy = (socks.HTTP, proxy_ip, proxy_port, True, proxy_login, proxy_password)
-                # elif self.type_of_proxy == "SOCKS":
-                #     proxy = (socks.HTTP, proxy_ip, proxy_port, True, proxy_login, proxy_password)
-                client = TelegramClient(session=f"sessions/{session}", api_id=json_["app_id"], api_hash=json_["app_hash"],
-                                    app_version=json_["app_version"], system_version=json_["sdk"],
-                                    device_model=json_["device"], lang_code=lang_code, system_lang_code=json_["system_lang_pack"], proxy=proxy)
+                    lang_code = json_.get("lang_code", "ru")
+                    # if self.type_of_proxy == "HTTP":
+                    #     proxy = (socks.HTTP, proxy_ip, proxy_port, True, proxy_login, proxy_password)
+                    # elif self.type_of_proxy == "SOCKS":
+                    #     proxy = (socks.HTTP, proxy_ip, proxy_port, True, proxy_login, proxy_password)
+                    client = TelegramClient(session=f"sessions/{session}", api_id=json_["app_id"], api_hash=json_["app_hash"],
+                                        app_version=json_["app_version"], system_version=json_["sdk"],
+                                        device_model=json_["device"], lang_code=lang_code, system_lang_code=json_["system_lang_pack"], proxy=proxy)
+                else:
+                    Logger.info(f'Подан неверный json - {session.split(".")[0]}.json, перемещаю аккаунт в bad',self.red, out_file=self.file_log)
+                    client = False
             else:
-                Logger.info(f'Подан неверный json - {session.split(".")[0]}.json, перемещаю аккаунт в bad',self.red, out_file=self.file_log)
                 client = False
             return client
         except Exception as ex:
@@ -360,6 +365,13 @@ class Settings:
                     Logger.info(f"Не удалось считать данные на строке - {counter}, проверьте введенные данные!",
                                 self.red)
                 counter += 1
+
+    def read_delete_posts(self):
+        with open(self.path_to_delete_posts, "r", encoding="utf-8") as file:
+            lines = file.readlines()
+            for line in lines:
+                self.delete_posts_chats.append(line.strip())
+
 
 class AccountsJson:
 

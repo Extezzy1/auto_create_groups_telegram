@@ -438,3 +438,42 @@ async def make_post_from_txt(settings: Settings, client: telethon.TelegramClient
     return False, 0
 
 
+async def delete_posts_from_chat(settings: Settings, client: telethon.TelegramClient, session: str, channel_to_id: int, channel_link: str):
+    try:
+        await client.connect()
+
+        if await client.is_user_authorized():
+            await client.start("0")
+            # Тут удаление постов из чата
+            messagesid = []
+            async for message in client.iter_messages(channel_to_id):
+                messagesid.append(message.id)
+
+            await client.delete_messages(entity=channel_link, message_ids=messagesid)
+            Logger.info(f"Успешно удалил все сообщения из чата - {channel_link} на аккаунте - {session}", settings.gr, out_file="logs.txt")
+            await client.disconnect()
+            return True, 1
+        else:
+            await client.disconnect()
+            Logger.info(f"Сессия {session} словила  бан, перемещаю в badsession", settings.red, out_file="logs.txt")
+
+            settings.deleted_sessions.append(session)
+    except PhoneNumberInvalidError as ex:
+        await client.disconnect()
+        Logger.info(f"Сессия {session} словила  бан, перемещаю в badsession", settings.red, out_file="logs.txt")
+
+        settings.deleted_sessions.append(session)
+    except FloodWaitError:
+        await client.disconnect()
+
+        Logger.info(f"Словил флуд на аккаунте {session}", settings.red)
+        settings.flood_sessions.append(session)
+    except ConnectionError:
+        await client.disconnect()
+        Logger.info(f"Не смог подключиться к {session}, пробую другую прокси...", settings.red, out_file="logs.txt")
+        return False, 1
+    except Exception as ex:
+        await client.disconnect()
+
+        Logger.info(f"Словил неизвестную ошибку {ex} на аккаунте - {session}", settings.red, out_file="logs.txt")
+    return False, 0

@@ -32,6 +32,7 @@ try:
     path_to_edit_photo = config["PATH_TO_TXT"]["path_to_edit_photo"]
     path_to_edit_title = config["PATH_TO_TXT"]["path_to_edit_title"]
     path_to_send_message = config["PATH_TO_TXT"]["path_to_send_message"]
+    path_to_delete_posts = config["PATH_TO_TXT"]["path_to_delete_posts"]
 
     if not (os.path.exists(path_to_channels) and os.path.isfile(path_to_channels)):
         raise ValueError("Неверный путь к файлу с чатами!")
@@ -47,6 +48,8 @@ try:
         raise ValueError("Неверный путь к файлу с чатами, в которых изменяем названия!")
     if not (os.path.exists(path_to_send_message) and os.path.isfile(path_to_send_message)):
         raise ValueError("Неверный путь к файлу с чатами, в которых изменяем названия!")
+    if not (os.path.exists(path_to_delete_posts) and os.path.isfile(path_to_delete_posts)):
+        raise ValueError("Неверный путь к файлу с чатами, из которых удаляем посты!")
 
 except ValueError as ex:
     raise ValueError(ex.args[0])
@@ -135,53 +138,53 @@ async def all():
                             index_account += 1
                             continue
                     client = settings.get_client(session, proxy)
-                    channel = settings.channels[random.randint(0, len(settings.channels) - 1)]
-                    if len(settings.avatars) > 0:
+                    if client:
+                        channel = settings.channels[random.randint(0, len(settings.channels) - 1)]
+                        if len(settings.avatars) > 0:
 
-                        path_to_avatar = f"avatars/{settings.avatars[random.randint(0, len(settings.avatars) - 1)]}"
-                    else:
-                        # Logger.info("Закончились аватарки, продолжаю создание чатов без аватарок", settings.ye)
-                        is_avatar = False
+                            path_to_avatar = f"avatars/{settings.avatars[random.randint(0, len(settings.avatars) - 1)]}"
+                        else:
+                            # Logger.info("Закончились аватарки, продолжаю создание чатов без аватарок", settings.ye)
+                            is_avatar = False
 
-                    if is_avatar:
+                        if is_avatar:
 
-                        result = await channels_script.create_chat(settings, client, session, channel,
-                                                          is_avatar, permissions_write_to_chat, permissions_show_admin,
-                                                          avatar=path_to_avatar)
-                        if result[0]:
-                            data = AccountsJson.read_json_file("data.json")
-                            if not data.get(session, False):
-                                data[session] = [[result[1], channel[0], result[2]]]
-                            else:
-                                data[session].append([result[1], channel[0], result[2]])
-                            AccountsJson.write_json_file(data, "data.json")
-                            limited_accounts.append(session)
-                            index_account += 1
-                        elif not result[0]:
-                            if result[1]:
-                                continue
-                            else:
+                            result = await channels_script.create_chat(settings, client, session, channel,
+                                                              is_avatar, permissions_write_to_chat, permissions_show_admin,
+                                                              avatar=path_to_avatar)
+                            if result[0]:
+                                data = AccountsJson.read_json_file("data.json")
+                                if not data.get(session, False):
+                                    data[session] = [[result[1], channel[0], result[2]]]
+                                else:
+                                    data[session].append([result[1], channel[0], result[2]])
+                                AccountsJson.write_json_file(data, "data.json")
+                                limited_accounts.append(session)
+                                index_account += 1
+                            elif not result[0]:
+                                if result[1]:
+                                    continue
+                                else:
+                                    index_account += 1
+
+                        else:
+                            result = await channels_script.create_chat(settings, client, session, channel,
+                                                              is_avatar, permissions_write_to_chat, permissions_show_admin)
+                            if result[0]:
+                                data = AccountsJson.read_json_file("data.json")
+                                if not data.get(session, False):
+                                    data[session] = [[result[1], channel[0], result[2]]]
+                                else:
+                                    data[session].append([result[1], channel[0], result[2]])
+                                AccountsJson.write_json_file(data, "data.json")
+                                limited_accounts.append(session)
                                 index_account += 1
 
-
-                    else:
-                        result = await channels_script.create_chat(settings, client, session, channel,
-                                                          is_avatar, permissions_write_to_chat, permissions_show_admin)
-                        if result[0]:
-                            data = AccountsJson.read_json_file("data.json")
-                            if not data.get(session, False):
-                                data[session] = [[result[1], channel[0], result[2]]]
-                            else:
-                                data[session].append([result[1], channel[0], result[2]])
-                            AccountsJson.write_json_file(data, "data.json")
-                            limited_accounts.append(session)
-                            index_account += 1
-
-                        elif not result[0]:
-                            if result[1]:
-                                continue
-                            else:
-                                index_account += 1
+                            elif not result[0]:
+                                if result[1]:
+                                    continue
+                                else:
+                                    index_account += 1
 
                     time.sleep(delay_after_account)
                 for session in limited_accounts:
@@ -208,19 +211,19 @@ async def all():
                             while not is_deleted:
                                 proxy = settings.proxies[random.randint(0, len(settings.proxies) - 1)]
                                 client = settings.get_client(session, proxy)
-
-                                result = await channels_script.delete_chat(settings, client, session, channel[0],
-                                                                           channel[1])
-                                if result[0]:
-                                    data[session].remove(channel)
-                                    accounts["limited"].remove(session)
-                                    accounts["active"].append(session)
-                                    is_deleted = True
-                                elif not result[0]:
-                                    if result[1]:
-                                        continue
-                                    else:
+                                if client:
+                                    result = await channels_script.delete_chat(settings, client, session, channel[0],
+                                                                               channel[1])
+                                    if result[0]:
+                                        data[session].remove(channel)
+                                        accounts["limited"].remove(session)
+                                        accounts["active"].append(session)
                                         is_deleted = True
+                                    elif not result[0]:
+                                        if result[1]:
+                                            continue
+                                        else:
+                                            is_deleted = True
                     AccountsJson.write_json_file(accounts, "accounts.json")
                     AccountsJson.write_json_file(data, "data.json")
 
@@ -254,18 +257,18 @@ async def all():
                                 while not is_deleted:
                                     proxy = settings.proxies[random.randint(0, len(settings.proxies) - 1)]
                                     client = settings.get_client(session, proxy)
-
-                                    result = await channels_script.delete_chat(settings, client, session, channel[0], channel[1])
-                                    if result[0]:
-                                        data[session].remove(channel)
-                                        accounts["limited"].remove(session)
-                                        accounts["active"].append(session)
-                                        is_deleted = True
-                                    elif not result[0]:
-                                        if result[1]:
-                                            continue
-                                        else:
+                                    if client:
+                                        result = await channels_script.delete_chat(settings, client, session, channel[0], channel[1])
+                                        if result[0]:
+                                            data[session].remove(channel)
+                                            accounts["limited"].remove(session)
+                                            accounts["active"].append(session)
                                             is_deleted = True
+                                        elif not result[0]:
+                                            if result[1]:
+                                                continue
+                                            else:
+                                                is_deleted = True
 
 
                     AccountsJson.write_json_file(accounts, "accounts.json")
@@ -298,7 +301,7 @@ async def all():
 
                 Logger.info("Считываю чаты, в которые публикуем сообщения", settings.ye)
                 settings.read_only_sending_chats()
-                Logger.info(f"Считано {len(settings.only_sending_chats)} чатов! Начинаю рассылку!")
+                Logger.info(f"Считано {len(settings.only_sending_chats)} чатов! Начинаю рассылку!", settings.ye)
 
                 data = AccountsJson.read_json_file("data.json")
                 for session in data:
@@ -313,14 +316,15 @@ async def all():
                             while not is_posted:
                                 proxy = settings.proxies[random.randint(0, len(settings.proxies) - 1)]
                                 client = settings.get_client(session, proxy)
-                                result = await channels_script.make_post(settings, client, session, channel_from, id_from, id_to, channel[0], type_of_post, channel[2])
-                                if result[0]:
-                                    is_posted = True
-                                elif not result[0]:
-                                    if result[1]:
-                                        continue
-                                    else:
+                                if client:
+                                    result = await channels_script.make_post(settings, client, session, channel_from, id_from, id_to, channel[0], type_of_post, channel[2])
+                                    if result[0]:
                                         is_posted = True
+                                    elif not result[0]:
+                                        if result[1]:
+                                            continue
+                                        else:
+                                            is_posted = True
                 AccountsJson.write_json_file(accounts, "accounts.json")
 
             elif action == "5":
@@ -347,16 +351,17 @@ async def all():
                                 while not is_add_admin:
                                     proxy = settings.proxies[random.randint(0, len(settings.proxies) - 1)]
                                     client = settings.get_client(session, proxy)
-                                    result = await channels_script.add_admin(settings, client,
-                                                                             session,
-                                                                             channel[0], admin_bot)
-                                    if result[0]:
-                                        is_add_admin = True
-                                    elif not result[0]:
-                                        if result[1]:
-                                            continue
-                                        else:
+                                    if client:
+                                        result = await channels_script.add_admin(settings, client,
+                                                                                 session,
+                                                                                 channel[0], admin_bot)
+                                        if result[0]:
                                             is_add_admin = True
+                                        elif not result[0]:
+                                            if result[1]:
+                                                continue
+                                            else:
+                                                is_add_admin = True
 
                     AccountsJson.write_json_file(accounts, "accounts.json")
 
@@ -385,7 +390,7 @@ async def all():
                     for session in data:
                         if session not in accounts["active"] and session not in accounts["limited"]:
                             Logger.info(
-                                f"Не смог переименовать чат {admin_bot} в администраторы чата {channel_link}, так как аккаунт [{session}] не активен, пропускаю..",
+                                f"Не смог переименовать чат {channel_link}, так как аккаунт [{session}] не активен, пропускаю..",
                                 settings.red, out_file="logs.txt")
                             continue
                         for channel in data[session]:
@@ -395,17 +400,18 @@ async def all():
                                 while not is_edit_title:
                                     proxy = settings.proxies[random.randint(0, len(settings.proxies) - 1)]
                                     client = settings.get_client(session, proxy)
-                                    result = await channels_script.edit_title_chat(settings, client,
-                                                                             session,
-                                                                             channel[0], channel[1], new_title)
-                                    if result[0]:
-                                        data[session] = [[channel[0], new_title, channel_link]]
-                                        is_edit_title = True
-                                    elif not result[0]:
-                                        if result[1]:
-                                            continue
-                                        else:
+                                    if client:
+                                        result = await channels_script.edit_title_chat(settings, client,
+                                                                                 session,
+                                                                                 channel[0], channel[1], new_title)
+                                        if result[0]:
+                                            data[session] = [[channel[0], new_title, channel_link]]
                                             is_edit_title = True
+                                        elif not result[0]:
+                                            if result[1]:
+                                                continue
+                                            else:
+                                                is_edit_title = True
 
                     AccountsJson.write_json_file(accounts, "accounts.json")
                     AccountsJson.write_json_file(data, "data.json")
@@ -441,22 +447,23 @@ async def all():
                                     while not is_edit_photo:
                                         proxy = settings.proxies[random.randint(0, len(settings.proxies) - 1)]
                                         client = settings.get_client(session, proxy)
-                                        result = await channels_script.edit_photo_chat(settings, client,
-                                                                                 session,
-                                                                                 channel[0], channel[1], path_to_avatar)
-                                        if result[0]:
-                                            is_edit_photo = True
-                                        elif not result[0]:
-                                            if result[1]:
-                                                continue
-                                            else:
+                                        if client:
+                                            result = await channels_script.edit_photo_chat(settings, client,
+                                                                                     session,
+                                                                                     channel[0], channel[1], path_to_avatar)
+                                            if result[0]:
                                                 is_edit_photo = True
+                                            elif not result[0]:
+                                                if result[1]:
+                                                    continue
+                                                else:
+                                                    is_edit_photo = True
 
                         AccountsJson.write_json_file(accounts, "accounts.json")
 
                     Logger.info("Закончил изменение аватарок чатов!", settings.gr)
                 else:
-                    Logger.info("Загрузите аватарки в папку avatars!")
+                    Logger.info("Загрузите аватарки в папку avatars!", settings.red)
             elif action == "9":
                 # Изменение названия чата
                 Logger.info("Считываю файл с сообщениями...", settings.ye)
@@ -492,23 +499,24 @@ async def all():
                                 while not is_send_message:
                                     proxy = settings.proxies[random.randint(0, len(settings.proxies) - 1)]
                                     client = settings.get_client(session, proxy)
-                                    if is_video_or_photo and len(settings.send_media) > 0:
-                                        # Отправляет пост с видео или фото
-                                        random_media = settings.send_media[random.randint(0, len(settings.send_media) - 1)]
-                                        result = await channels_script.make_post_from_txt(settings, client,
-                                                                             session,
-                                                                             channel[0], channel[2], message_text, path_to_file=f"files/for_posts/{random_media}")
-                                    else:
-                                        result = await channels_script.make_post_from_txt(settings, client,
-                                                                             session,
-                                                                             channel[0], channel[2], message_text)
-                                    if result[0]:
-                                        is_send_message = True
-                                    elif not result[0]:
-                                        if result[1]:
-                                            continue
+                                    if client:
+                                        if is_video_or_photo and len(settings.send_media) > 0:
+                                            # Отправляет пост с видео или фото
+                                            random_media = settings.send_media[random.randint(0, len(settings.send_media) - 1)]
+                                            result = await channels_script.make_post_from_txt(settings, client,
+                                                                                 session,
+                                                                                 channel[0], channel[2], message_text, path_to_file=f"files/for_posts/{random_media}")
                                         else:
+                                            result = await channels_script.make_post_from_txt(settings, client,
+                                                                                 session,
+                                                                                 channel[0], channel[2], message_text)
+                                        if result[0]:
                                             is_send_message = True
+                                        elif not result[0]:
+                                            if result[1]:
+                                                continue
+                                            else:
+                                                is_send_message = True
 
                     AccountsJson.write_json_file(accounts, "accounts.json")
                     AccountsJson.write_json_file(data, "data.json")
@@ -518,50 +526,42 @@ async def all():
                 # Изменение названия чата
                 Logger.info("Считываю файл с чатами, из которых удаляем все посты...", settings.ye)
                 settings.read_delete_posts()
-                Logger.info(f"Успешно считал {len(settings.send_message)} чатов! Начинаю отправку...",
+                Logger.info(f"Успешно считал {len(settings.delete_posts_chats)} чатов! Начинаю удаление постов...",
                             settings.gr)
 
 
                 data = AccountsJson.read_json_file("data.json")
 
-                for channel_send in settings.send_message:
-                    channel_link = channel_send[0]
-                    message_text = channel_send[1]
+                for channel_link in settings.delete_posts_chats:
                     for session in data:
                         if session not in accounts["active"] and session not in accounts["limited"]:
                             Logger.info(
-                                f"Не смог отправить сообщения в чат {channel_link}, так как аккаунт [{session}] не активен, пропускаю..",
+                                f"Не смог удалить посты из чата {channel_link}, так как аккаунт [{session}] не активен, пропускаю..",
                                 settings.red, out_file="logs.txt")
                             continue
                         for channel in data[session]:
 
                             if channel[2] == channel_link:
-                                is_send_message = False
-                                while not is_send_message:
+                                is_delete_posts = False
+                                while not is_delete_posts:
                                     proxy = settings.proxies[random.randint(0, len(settings.proxies) - 1)]
                                     client = settings.get_client(session, proxy)
-                                    if is_video_or_photo and len(settings.send_media) > 0:
-                                        # Отправляет пост с видео или фото
-                                        random_media = settings.send_media[random.randint(0, len(settings.send_media) - 1)]
-                                        result = await channels_script.make_post_from_txt(settings, client,
+                                    if client:
+                                        result = await channels_script.delete_posts_from_chat(settings, client,
                                                                              session,
-                                                                             channel[0], channel[2], message_text, path_to_file=f"files/for_posts/{random_media}")
-                                    else:
-                                        result = await channels_script.make_post_from_txt(settings, client,
-                                                                             session,
-                                                                             channel[0], channel[2], message_text)
-                                    if result[0]:
-                                        is_send_message = True
-                                    elif not result[0]:
-                                        if result[1]:
-                                            continue
-                                        else:
-                                            is_send_message = True
+                                                                             channel[0], channel[2])
+                                        if result[0]:
+                                            is_delete_posts = True
+                                        elif not result[0]:
+                                            if result[1]:
+                                                continue
+                                            else:
+                                                is_delete_posts = True
 
                     AccountsJson.write_json_file(accounts, "accounts.json")
                     AccountsJson.write_json_file(data, "data.json")
 
-                Logger.info("Закончил отправку сообщений!", settings.gr)
+                Logger.info("Закончил удаление постов!", settings.gr)
             else:
                 Logger.info("Действие должно быть числом от 1 до 9!", settings.red)
             settings.delete_sessions()
@@ -577,7 +577,8 @@ if __name__ == '__main__':
         settings = Settings(path_to_channels=path_to_channels,path_to_admins=path_to_admins,
                             path_to_undeleted_channels=path_to_undeleted_channels, type_of_proxy=type_of_proxy,
                             path_to_only_sending=path_to_only_sending, path_to_edit_title=path_to_edit_title,
-                            path_to_edit_photo=path_to_edit_photo, path_to_send_message=path_to_send_message)
+                            path_to_edit_photo=path_to_edit_photo, path_to_send_message=path_to_send_message,
+                            path_to_delete_posts=path_to_delete_posts)
 
         loop = asyncio.get_event_loop()
         loop.run_until_complete(all())
